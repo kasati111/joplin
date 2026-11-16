@@ -49530,11 +49530,11 @@ __metadata:
 
 "rn-fetch-blob@patch:rn-fetch-blob@npm%3A0.12.0#~/.yarn/patches/rn-fetch-blob-npm-0.12.0-cf02e3c544.patch":
   version: 0.12.0
-  resolution: "rn-fetch-blob@patch:rn-fetch-blob@npm%3A0.12.0#~/.yarn/patches/rn-fetch-blob-npm-0.12.0-cf02e3c544.patch::version=0.12.0&hash=61864b"
+  resolution: "rn-fetch-blob@patch:rn-fetch-blob@npm%3A0.12.0#~/.yarn/patches/rn-fetch-blob-npm-0.12.0-cf02e3c544.patch::version=0.12.0&hash=775324"
   dependencies:
     base-64: "npm:0.1.0"
     glob: "npm:7.0.6"
-  checksum: 10/7dc1d89c6c582163210335a4ba694e6343022823c9842e548ff1ecb7bf15770dc5c153c067d057f3a0e5ad43f020f1a876045e79db4a7cd2a46e93a5e690323b
+  checksum: 10/ee3698ba416e34f15087eb82a1bb4877cc969cf3749c7dd65f6b6a2467affc9cadf819643c0d4b0a51fc47228c8a6068b16f72324dbd8d67f89f577cd39e1e47
   languageName: node
   linkType: hard
 
