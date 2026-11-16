@@ -1,6 +1,7 @@
 # Fixes sync issues caused by locale-sensitive lowercasing
 # of HTTP headers.
 # See https://github.com/laurent22/joplin/issues/10681
+# Client certificates (mutual TLS): keep the app's key managers when "trusty" replaces the socket factory, and use the client's connection pool instead of a static one.
 diff --git a/android/src/main/java/com/RNFetchBlob/RNFetchBlobConfig.java b/android/src/main/java/com/RNFetchBlob/RNFetchBlobConfig.java
 index 8ac9e7a855162cefbf99024eb013c8a3b11de1ec..1c639cf9d84821b6ffc132960e2d1c044bedbd48 100644
 --- a/android/src/main/java/com/RNFetchBlob/RNFetchBlobConfig.java
@@ -53,7 +54,7 @@ index a4d70153f41e6c14eec65412b5b59822f1c6750b..d98c439f7b0aeb79afc82ab9f653e9c0
  
          }
 diff --git a/android/src/main/java/com/RNFetchBlob/RNFetchBlobReq.java b/android/src/main/java/com/RNFetchBlob/RNFetchBlobReq.java
-index a8abd71833879201e3438b2fa51d712a311c4551..b70cc13c004229f69157de5f82ae5ec3abf4358e 100644
+index a8abd71833879201e3438b2fa51d712a311c4551..d6e7a2501c618880098d4b8e5e25f7ab386af057 100644
 --- a/android/src/main/java/com/RNFetchBlob/RNFetchBlobReq.java
 +++ b/android/src/main/java/com/RNFetchBlob/RNFetchBlobReq.java
 @@ -49,6 +49,7 @@ import java.security.KeyStore;
@@ -91,7 +92,15 @@ index a8abd71833879201e3438b2fa51d712a311c4551..b70cc13c004229f69157de5f82ae5ec3
                          cType = cType.replace(";base64","").replace(";BASE64","");
                          if(mheaders.containsKey("content-type"))
                              mheaders.put("content-type", cType);
-@@ -686,7 +687,7 @@ public class RNFetchBlobReq extends BroadcastReceiver implements Runnable {
+@@ -440,7 +441,6 @@ public class RNFetchBlobReq extends BroadcastReceiver implements Runnable {
+                 clientBuilder.readTimeout(options.timeout, TimeUnit.MILLISECONDS);
+             }
+ 
+-            clientBuilder.connectionPool(pool);
+             clientBuilder.retryOnConnectionFailure(false);
+             clientBuilder.followRedirects(options.followRedirect);
+             clientBuilder.followSslRedirects(options.followRedirect);
+@@ -686,7 +686,7 @@ public class RNFetchBlobReq extends BroadcastReceiver implements Runnable {
          boolean isCustomBinary = false;
          if(options.binaryContentTypes != null) {
              for(int i = 0; i< options.binaryContentTypes.size();i++) {
@@ -100,7 +109,7 @@ index a8abd71833879201e3438b2fa51d712a311c4551..b70cc13c004229f69157de5f82ae5ec3
                      isCustomBinary = true;
                      break;
                  }
-@@ -698,13 +699,13 @@ public class RNFetchBlobReq extends BroadcastReceiver implements Runnable {
+@@ -698,13 +698,13 @@ public class RNFetchBlobReq extends BroadcastReceiver implements Runnable {
      private String getHeaderIgnoreCases(Headers headers, String field) {
          String val = headers.get(field);
          if(val != null) return val;
@@ -115,4 +124,40 @@ index a8abd71833879201e3438b2fa51d712a311c4551..b70cc13c004229f69157de5f82ae5ec3
 +        String lowerCasedValue = headers.get(field.toLowerCase(Locale.ROOT));
          return lowerCasedValue == null ? "" : lowerCasedValue;
      }
+ 
+diff --git a/android/src/main/java/com/RNFetchBlob/RNFetchBlobUtils.java b/android/src/main/java/com/RNFetchBlob/RNFetchBlobUtils.java
+index ab35fdd31650dae29c91d7861408db29fe4855f3..4a053534ea177ec05ea6ddacaf6e3e56b5546404 100644
+--- a/android/src/main/java/com/RNFetchBlob/RNFetchBlobUtils.java
++++ b/android/src/main/java/com/RNFetchBlob/RNFetchBlobUtils.java
+@@ -8,6 +8,7 @@ import java.security.MessageDigest;
+ import java.security.cert.CertificateException;
+ 
+ import javax.net.ssl.HostnameVerifier;
++import javax.net.ssl.KeyManager;
+ import javax.net.ssl.SSLContext;
+ import javax.net.ssl.SSLSession;
+ import javax.net.ssl.SSLSocketFactory;
+@@ -19,6 +20,14 @@ import okhttp3.OkHttpClient;
+ 
+ public class RNFetchBlobUtils {
+ 
++    // Key managers used when "trusty" replaces the client's socket factory, so that a
++    // client certificate (mutual TLS) is still presented. Set by the app.
++    private static volatile KeyManager[] clientKeyManagers = null;
++
++    public static void setClientKeyManagers(KeyManager[] keyManagers) {
++        clientKeyManagers = keyManagers;
++    }
++
+     public static String getMD5(String input) {
+         String result = null;
+ 
+@@ -74,7 +83,7 @@ public class RNFetchBlobUtils {
+ 
+             // Install the all-trusting trust manager
+             final SSLContext sslContext = SSLContext.getInstance("SSL");
+-            sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
++            sslContext.init(clientKeyManagers, trustAllCerts, new java.security.SecureRandom());
+             // Create an ssl socket factory with our all-trusting manager
+             final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
  

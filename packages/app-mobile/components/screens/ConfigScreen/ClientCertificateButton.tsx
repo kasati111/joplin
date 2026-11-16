@@ -6,7 +6,7 @@ import Logger from '@joplin/utils/Logger';
 import SyncTargetRegistry from '@joplin/lib/SyncTargetRegistry';
 import SettingsButton from './SettingsButton';
 import { ConfigScreenStyles } from './configScreenStyles';
-import { clearClientCertificate, clientCertificatesSupported, getClientCertificateAlias, selectClientCertificate } from '../../../utils/TlsUtils';
+import { ClientCertificate, clearClientCertificate, clientCertificatesSupported, getClientCertificate, isCertificateForServer, selectClientCertificate } from '../../../utils/TlsUtils';
 
 const logger = Logger.create('ClientCertificateButton');
 
@@ -32,13 +32,18 @@ interface Props {
 }
 
 const ClientCertificateButton: React.FC<Props> = props => {
-	const [alias, setAlias] = useState<string|null>(null);
+	const [certificate, setCertificate] = useState<ClientCertificate|null>(null);
+	const alias = certificate?.alias ?? null;
+
+	const refresh = useCallback(async () => {
+		setCertificate(await getClientCertificate());
+	}, []);
 
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
-			const currentAlias = await getClientCertificateAlias();
-			if (!cancelled) setAlias(currentAlias);
+			const current = await getClientCertificate();
+			if (!cancelled) setCertificate(current);
 		})();
 		return () => {
 			cancelled = true;
@@ -48,16 +53,16 @@ const ClientCertificateButton: React.FC<Props> = props => {
 	const onSelect = useCallback(async () => {
 		try {
 			const selectedAlias = await selectClientCertificate(props.serverUrl);
-			if (selectedAlias) setAlias(selectedAlias);
+			if (selectedAlias) await refresh();
 		} catch (error) {
 			logger.error('Could not select client certificate', error);
 			Alert.alert(_('Error'), error.message);
 		}
-	}, [props.serverUrl]);
+	}, [props.serverUrl, refresh]);
 
 	const onRemove = useCallback(async () => {
 		await clearClientCertificate();
-		setAlias(null);
+		setCertificate(null);
 	}, []);
 
 	const onPress = useCallback(() => {
@@ -77,9 +82,15 @@ const ClientCertificateButton: React.FC<Props> = props => {
 		]);
 	}, [alias, onSelect, onRemove]);
 
-	const description = alias
-		? _('Selected certificate: %s', alias)
-		: _('If your server requires a client certificate (mutual TLS), install it in the Android settings and select it here.');
+	let description;
+	if (!certificate) {
+		description = _('If your server requires a client certificate (mutual TLS), install it in the Android settings and select it here.');
+	} else if (isCertificateForServer(certificate, props.serverUrl)) {
+		description = _('Selected certificate: %s', certificate.alias);
+	} else {
+		// For example, the sync URL has changed since the certificate was selected
+		description = _('The certificate %s was selected for another server. Select it again to use it with this server.', certificate.alias);
+	}
 
 	return (
 		<SettingsButton

@@ -4,13 +4,11 @@ import android.annotation.SuppressLint;
 
 import java.security.KeyStore;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.Set;
 import java.util.WeakHashMap;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -37,15 +35,22 @@ public class SslUtils {
         }
     };
 
+    private static X509TrustManager defaultTrustManager = null;
+
+    // Recreated when the client certificate changes. A new SSLContext also has a new TLS
+    // session cache, so sessions negotiated with the previous identity are not resumed.
+    // (Conscrypt does not support SSLSession.invalidate() on sessions from the cache.)
     private static SSLContext defaultContext = null;
     private static SSLContext trustyContext = null;
-    private static X509TrustManager defaultTrustManager = null;
+
+    private static final SSLSocketFactory defaultSocketFactory = new DelegatingSslSocketFactory(() -> getDefaultContext().getSocketFactory());
+    private static final SSLSocketFactory trustySocketFactory = new DelegatingSslSocketFactory(() -> getTrustyContext().getSocketFactory());
 
     // Clients created by ClientCertificateHttpClientFactory. Clients derived from them
     // with newBuilder() share their connection pool, so evicting these is enough.
     private static final Set<OkHttpClient> clients = Collections.newSetFromMap(new WeakHashMap<>());
 
-    private static KeyManager[] keyManagers() {
+    static KeyManager[] keyManagers() {
         return new KeyManager[]{ ClientCertificateKeyManager.getInstance() };
     }
 
@@ -67,31 +72,35 @@ public class SslUtils {
         throw new IllegalStateException("No X509TrustManager available");
     }
 
-    // Validates server certificates as usual and presents the selected client certificate, if any
-    static synchronized SSLSocketFactory getSocketFactory() {
+    private static synchronized SSLContext getDefaultContext() {
+        if (defaultContext == null) defaultContext = createContext(getDefaultTrustManager());
+        return defaultContext;
+    }
+
+    private static synchronized SSLContext getTrustyContext() {
+        if (trustyContext == null) trustyContext = createContext(TRUST_ALL_CERTS);
+        return trustyContext;
+    }
+
+    private static SSLContext createContext(X509TrustManager trustManager) {
         try {
-            if (defaultContext == null) {
-                defaultContext = SSLContext.getInstance("TLS");
-                defaultContext.init(keyManagers(), new TrustManager[]{ getDefaultTrustManager() }, null);
-            }
-            return defaultContext.getSocketFactory();
+            SSLContext context = SSLContext.getInstance("TLS");
+            context.init(keyManagers(), new TrustManager[]{ trustManager }, null);
+            return context;
         } catch (Exception e) {
-            throw new RuntimeException("Could not create socket factory", e);
+            throw new RuntimeException("Could not create SSL context", e);
         }
+    }
+
+    // Validates server certificates as usual and presents the selected client certificate, if any
+    static SSLSocketFactory getSocketFactory() {
+        return defaultSocketFactory;
     }
 
     // Accepts any server certificate ("Ignore TLS certificate errors"), but still
     // presents the selected client certificate, if any
-    static synchronized SSLSocketFactory getTrustySocketFactory() {
-        try {
-            if (trustyContext == null) {
-                trustyContext = SSLContext.getInstance("TLS");
-                trustyContext.init(keyManagers(), new TrustManager[]{ TRUST_ALL_CERTS }, new java.security.SecureRandom());
-            }
-            return trustyContext.getSocketFactory();
-        } catch (Exception e) {
-            throw new RuntimeException("Could not create socket factory", e);
-        }
+    static SSLSocketFactory getTrustySocketFactory() {
+        return trustySocketFactory;
     }
 
     static void registerClient(OkHttpClient client) {
@@ -100,25 +109,17 @@ public class SslUtils {
         }
     }
 
-    // After the client certificate has changed, existing connections and cached TLS
-    // sessions still carry the previous identity, so they must not be reused.
-    static synchronized void onClientCertificateChanged() {
-        invalidateSessions(defaultContext);
-        invalidateSessions(trustyContext);
+    // After the client certificate has changed, idle connections and cached TLS sessions
+    // still carry the previous identity, so they must not be reused.
+    static void onClientCertificateChanged() {
+        synchronized (SslUtils.class) {
+            defaultContext = null;
+            trustyContext = null;
+        }
         synchronized (clients) {
             for (OkHttpClient client : clients) {
                 client.connectionPool().evictAll();
             }
-        }
-    }
-
-    private static void invalidateSessions(SSLContext context) {
-        if (context == null) return;
-        SSLSessionContext sessions = context.getClientSessionContext();
-        Enumeration<byte[]> ids = sessions.getIds();
-        while (ids.hasMoreElements()) {
-            javax.net.ssl.SSLSession session = sessions.getSession(ids.nextElement());
-            if (session != null) session.invalidate();
         }
     }
 }

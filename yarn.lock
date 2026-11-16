@@ -51902,11 +51902,11 @@ __metadata:
 
 "rn-fetch-blob@patch:rn-fetch-blob@npm%3A0.12.0#./.yarn/patches/rn-fetch-blob-npm-0.12.0-cf02e3c544.patch::locator=root%40workspace%3A.":
   version: 0.12.0
-  resolution: "rn-fetch-blob@patch:rn-fetch-blob@npm%3A0.12.0#./.yarn/patches/rn-fetch-blob-npm-0.12.0-cf02e3c544.patch::version=0.12.0&hash=a1df16&locator=root%40workspace%3A."
+  resolution: "rn-fetch-blob@patch:rn-fetch-blob@npm%3A0.12.0#./.yarn/patches/rn-fetch-blob-npm-0.12.0-cf02e3c544.patch::version=0.12.0&hash=8d186b&locator=root%40workspace%3A."
   dependencies:
     base-64: "npm:0.1.0"
     glob: "npm:7.0.6"
-  checksum: 10/782c688c20fd9e68e993efedf157e9cb2bf925320f8bb5e6840579c0a30a0a44877778fe6c6994af4ea068a73e2b61832403b2efeb803b7519edfea5e25e7e5d
+  checksum: 10/a0d323ba6bac3fa4e8b0f1d6d3fe76917afcdc152187bce411974d59688a1110b13e6faf0a59f11964d6a4471fb56be62118bd53bfa0562448540f0af314fabd
   languageName: node
   linkType: hard
 

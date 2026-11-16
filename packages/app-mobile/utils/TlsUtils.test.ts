@@ -1,4 +1,4 @@
-import { hostAndPortFromUrl } from './TlsUtils';
+import { hostAndPortFromUrl, isCertificateForServer } from './TlsUtils';
 
 describe('TlsUtils', () => {
 	test.each([
@@ -21,5 +21,18 @@ describe('TlsUtils', () => {
 		[null],
 	])('should not fail on invalid URL %s', (url) => {
 		expect(hostAndPortFromUrl(url)).toEqual({ host: null, port: -1 });
+	});
+
+	test.each([
+		[{ host: 'example.com', port: 443 }, 'https://example.com/joplin', true],
+		[{ host: 'example.com', port: 443 }, 'https://EXAMPLE.com', true],
+		[{ host: 'example.com', port: 443 }, 'https://example.com:8443', false],
+		[{ host: 'example.com', port: 443 }, 'https://other.example.com', false],
+		[{ host: '[2001:db8::1]', port: 8443 }, 'https://[2001:db8::1]:8443/', true],
+		[{ host: '2001:db8::1', port: 8443 }, 'https://[2001:db8::1]:8443/', true],
+		[{ host: null, port: -1 }, 'https://example.com', false],
+		[{ host: 'example.com', port: 443 }, '', false],
+	])('should check whether certificate %j is for %s', (server, url, expected) => {
+		expect(isCertificateForServer({ alias: 'test', ...server }, url)).toBe(expected);
 	});
 });

@@ -7,10 +7,12 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.network.NetworkingModule;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,7 +71,7 @@ public class SslModule extends ReactContextBaseJavaModule {
             KeyChain.choosePrivateKeyAlias(activity, alias -> {
                 if (alias != null) {
                     Log.d("JOPLIN", "Client certificate selected: " + alias);
-                    keyManager.setAlias(alias);
+                    keyManager.setCertificate(alias, host, (int) port);
                     SslUtils.onClientCertificateChanged();
                 }
                 promise.resolve(alias);
@@ -80,15 +82,26 @@ public class SslModule extends ReactContextBaseJavaModule {
         }
     }
 
+    // Resolves with { alias, host, port } of the selected certificate, or null
     @ReactMethod
-    public void getClientCertificateAlias(Promise promise) {
-        promise.resolve(ClientCertificateKeyManager.getInstance().getAlias());
+    public void getClientCertificate(Promise promise) {
+        ClientCertificateKeyManager keyManager = ClientCertificateKeyManager.getInstance();
+        String alias = keyManager.getAlias();
+        if (alias == null) {
+            promise.resolve(null);
+            return;
+        }
+        WritableMap result = Arguments.createMap();
+        result.putString("alias", alias);
+        result.putString("host", keyManager.getHost());
+        result.putInt("port", keyManager.getPort());
+        promise.resolve(result);
     }
 
     @ReactMethod
     public void clearClientCertificate(Promise promise) {
         Log.d("JOPLIN", "Client certificate cleared");
-        ClientCertificateKeyManager.getInstance().setAlias(null);
+        ClientCertificateKeyManager.getInstance().setCertificate(null, null, -1);
         SslUtils.onClientCertificateChanged();
         promise.resolve(null);
     }
